@@ -1,0 +1,107 @@
+version: '3.8'
+services:
+  mongodb:
+    build: ./mongodb
+    image: piridi/mongodb:v1
+    container_name: mongodb
+
+  catalogue:
+    build: ./catalogue
+    image: piridi/catalogue:v1
+    container_name: catalogue
+    environment:
+      MONGO: "true"
+      MONGO_URL: "mongodb://mongodb:27017/catalogue"
+    depends_on:
+      - mongodb
+
+  user:
+    build: ./user
+    image: piridi/user:v1
+    container_name: user
+    environment:
+      MONGO: "true"
+      MONGO_URL: "mongodb://mongodb:27017/user"
+      REDIS_URL: 'redis://redis:6379'
+    depends_on:
+      - mongodb
+      - redis
+
+  cart:
+    build: ./cart
+    image: piridi/cart:v1
+    container_name: cart
+    environment:
+      REDIS_HOST: redis
+      CATALOGUE_HOST: catalogue
+      CATALOGUE_PORT: 8080
+    depends_on:
+    - redis
+    - catalogue
+
+  shipping:
+    build: ./shipping
+    image: piridi/shipping:v1
+    container_name: shipping
+    environment:
+      CART_ENDPOINT: "cart:8080"
+      DB_HOST: mysql
+    depends_on:
+    - mysql
+    - cart
+
+  payment:
+    build: ./payment
+    image: piridi/payment:v1
+    container_name: payment
+    environment:
+      CART_HOST: "cart"
+      CART_PORT: 8080
+      USER_HOST: user
+      USER_PORT: 8080
+      AMQP_HOST: rabbitmq
+      AMQP_USER: roboshop
+      AMQP_PASS: roboshop123
+    depends_on:
+    - cart
+    - user
+    - rabbitmq
+
+  redis:
+    image: redis:7
+    container_name: redis 
+
+  mysql:
+    image: piridi/mysql:v1
+    build: ./mysql
+    container_name: mysql
+    command: --mysql-native-password=ON --innodb-lock_wait_timeout=120
+    environment:
+      MYSQL_ROOT_PASSWORD: "RoboShop@1"
+  
+  rabbitmq:
+    image: rabbitmq:3
+    container_name: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: roboshop
+      RABBITMQ_DEFAULT_PASS: roboshop123
+
+  frontend:
+    build: ./frontend
+    image: piridi/frontend:v1
+    container_name: frontend
+    ports:
+    - "80:80"
+    depends_on:
+    - catalogue
+    - user
+    - cart
+    - shipping
+    - payment
+
+networks:
+  default: # this means all the services in this file use this network
+    name: roboshop
+    driver: bridge
+    external: false # if true it should be created manually, if false docker creates this network  
+    
